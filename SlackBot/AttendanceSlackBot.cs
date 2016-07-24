@@ -21,7 +21,6 @@ namespace SlackBot
                 if (message.message.StartsWith($"<@{BotId}>"))
                 {
                     SendMessage(channel, "Hello " + message.sender.profile.real_name);
-                    SlackSendFile(channel, "/home/mathias/Desktop/chrome-0.png");
                 }
             };
         }
