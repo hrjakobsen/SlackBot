@@ -5,7 +5,6 @@ using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
-using Helpers;
 using Newtonsoft.Json.Linq;
 using WebSocketSharp;
 using WebSocket = WebSocketSharp.WebSocket;
