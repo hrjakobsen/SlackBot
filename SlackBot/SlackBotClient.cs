@@ -14,7 +14,7 @@ namespace SlackBot
     public abstract class SlackBotClient
     {
         private string _token;
-        private readonly string _name;
+        protected readonly string _name;
         private WebSocket _socket;
         private bool _running = true;
         public string BotId { get; private set; }
@@ -200,6 +200,11 @@ namespace SlackBot
         {
             WebClient wc = new WebClient();
             wc.UploadFile("https://slack.com/api/files.upload?token=" + _token + "&filename=" + filename + "&channels=" + channel.id, path);
+        }
+
+        public List<SlackUser> GetUsersFromChannel(SlackChannel channel)
+        {
+            return channel.members.Select(_getUserFromId).ToList();
         }
     }
 }
