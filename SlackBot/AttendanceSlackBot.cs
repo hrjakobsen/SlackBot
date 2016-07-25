@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Runtime.Remoting.Channels;
-using System.Threading;
 
 namespace SlackBot
 {
@@ -23,7 +21,7 @@ namespace SlackBot
 
         private void _parseMessage(object sender, SlackMessage message, SlackChannel channel)
         {
-            if (!message.message.StartsWith($"<@{BotId}>")) return;
+            if (!message.Text.StartsWith($"<@{BotId}>")) return;
 
             Dictionary<string, Delegate> commands = new Dictionary<string, Delegate>()
             {
@@ -31,7 +29,7 @@ namespace SlackBot
                 {"help", new Action<SlackMessage, SlackChannel>(helpCommand)}
             };
 
-            string[] msgParts = message.message.Split(' ');
+            string[] msgParts = message.Text.Split(' ');
 
             try
             {
@@ -49,7 +47,7 @@ namespace SlackBot
 
         private void keepAttendance(SlackMessage message, SlackChannel channel)
         {
-            SendMessage(channel, message.message);
+            SendMessage(channel, message.Text);
         }
 
         private void helpCommand(SlackMessage message, SlackChannel channel)

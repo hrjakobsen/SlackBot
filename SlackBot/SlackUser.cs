@@ -1,22 +1,46 @@
-﻿namespace SlackBot
+﻿using Newtonsoft.Json;
+
+namespace SlackBot
 {
     public class SlackUser
     {
-        public string id { get; set; }
-        public string name { get; set; }
-        public bool deleted { get; set; }
-        public SlackProfile profile { get; set; }
-        public bool is_admin { get; set; }
-        public bool is_owner { get; set; }
+        [JsonProperty("id")]
+        public string Id { get; set; }
+
+        [JsonProperty("name")]
+        public string Name { get; set; }
+
+        [JsonProperty("deleted")]
+        public bool Deleted { get; set; }
+
+        [JsonProperty("profile")]
+        public SlackProfile Profile { get; set; }
+
+        [JsonProperty("is_admin")]
+        public bool IsAdmin { get; set; }
+
+        [JsonProperty("is_owner")]
+        public bool IsOwner { get; set; }
 
         public class SlackProfile
         {
-            public string first_name { get; set; }
-            public string last_name { get; set; }
-            public string real_name { get; set; }
-            public string email { get; set; }
-            public string skype { get; set; }
-            public string phone { get; set; }
+            [JsonProperty("first_name")]
+            public string FirstName { get; set; }
+
+            [JsonProperty("last_name")]
+            public string LastName { get; set; }
+
+            [JsonProperty("real_name")]
+            public string RealName { get; set; }
+
+            [JsonProperty("email")]
+            public string Email { get; set; }
+
+            [JsonProperty("skype")]
+            public string Skype { get; set; }
+
+            [JsonProperty("phone")]
+            public string Phone { get; set; }
         }
     }
 }

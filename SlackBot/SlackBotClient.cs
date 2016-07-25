@@ -81,9 +81,9 @@ namespace SlackBot
         {
             foreach (SlackUser user in _getUsers())
             {
-                if (user.name == _name)
+                if (user.Name == _name)
                 {
-                    BotId = user.id;
+                    BotId = user.Id;
                     return;
                 }
             }
@@ -170,12 +170,12 @@ namespace SlackBot
 
         protected SlackChannel _getChannelFromId(string id)
         {
-            return Channels.FirstOrDefault(channel => channel.id == id);
+            return Channels.FirstOrDefault(channel => channel.Id == id);
         }
 
         protected SlackUser _getUserFromId(string id)
         {
-            return Users.FirstOrDefault(user => user.id == id);
+            return Users.FirstOrDefault(user => user.Id == id);
         }
 
         /// <summary>Sends a message to a given slack channel</summary>
@@ -185,7 +185,7 @@ namespace SlackBot
         {
             JObject parameters = new JObject
             {
-                {"channel", channel.id},
+                {"channel", channel.Id},
                 {"text", message},
                 {"username", "attendancebot"}
             };
@@ -199,12 +199,12 @@ namespace SlackBot
         public void SlackSendFile(SlackChannel channel, string path, string filename)
         {
             WebClient wc = new WebClient();
-            wc.UploadFile("https://slack.com/api/files.upload?token=" + _token + "&filename=" + filename + "&channels=" + channel.id, path);
+            wc.UploadFile("https://slack.com/api/files.upload?token=" + _token + "&filename=" + filename + "&channels=" + channel.Id, path);
         }
 
         public List<SlackUser> GetUsersFromChannel(SlackChannel channel)
         {
-            return channel.members.Select(_getUserFromId).ToList();
+            return channel.Members.Select(_getUserFromId).ToList();
         }
     }
 }

@@ -1,15 +1,22 @@
-﻿namespace SlackBot
+﻿using Newtonsoft.Json;
+
+namespace SlackBot
 {
     public class SlackMessage
     {
-        public string message { get; set; }
-        public SlackUser sender { get; set; }
-        public string channel { get; set; }
+        [JsonProperty("message")]
+        public string Text { get; set; }
 
-        public SlackMessage(string message, SlackUser sender)
+        [JsonProperty("sender")]
+        public SlackUser Sender { get; set; }
+
+        [JsonProperty("channel")]
+        public string Channel { get; set; }
+
+        public SlackMessage(string text, SlackUser sender)
         {
-            this.message = message;
-            this.sender = sender;
+            Text = text;
+            Sender = sender;
         }
     }
 }
