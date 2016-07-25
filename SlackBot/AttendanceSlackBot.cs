@@ -25,8 +25,14 @@ namespace SlackBot
 
             Dictionary<string, Delegate> commands = new Dictionary<string, Delegate>()
             {
-                {"keep", new Action<SlackMessage, SlackChannel>(keepAttendance)},
-                {"help", new Action<SlackMessage, SlackChannel>(helpCommand)}
+                {"help", new Action<SlackMessage, SlackChannel>(helpCommand)},
+                {"keep", new Action<SlackMessage, SlackChannel>(notYetImplemented)},
+                {"init", new Action<SlackMessage, SlackChannel>(notYetImplemented)},
+                {"image", new Action<SlackMessage, SlackChannel>(notYetImplemented)},
+                {"reset", new Action<SlackMessage, SlackChannel>(notYetImplemented)},
+                {"revert", new Action<SlackMessage, SlackChannel>(notYetImplemented)},
+                {"redo", new Action<SlackMessage, SlackChannel>(notYetImplemented)}
+
             };
 
             string[] msgParts = message.Text.Split(' ');
@@ -45,9 +51,9 @@ namespace SlackBot
             }
         }
 
-        private void keepAttendance(SlackMessage message, SlackChannel channel)
+        private void notYetImplemented(SlackMessage message, SlackChannel channel)
         {
-            SendMessage(channel, message.Text);
+            SendMessage(channel, "This has not been implmented yet");
         }
 
         private void helpCommand(SlackMessage message, SlackChannel channel)
