@@ -14,7 +14,7 @@ namespace SlackBot
     public abstract class SlackBotClient
     {
         private string _token;
-        protected readonly string _name;
+        protected string Name { get; private set; }
         private WebSocket _socket;
         private bool _running = true;
         public string BotId { get; private set; }
@@ -31,10 +31,9 @@ namespace SlackBot
         /// <summary>Initializes a new Slack client using a token generated on Slack and gives it a name</summary>
         /// <param name="token">Generated token from slack which allows the client to connect to a team</param>
         /// <param name="name">name given on slack so that the bot can identify itself</param>
-        public SlackBotClient(string token, string name)
+        public SlackBotClient(string token)
         {
             _token = token;
-            _name = name;
             _start();
         }
 
@@ -72,28 +71,28 @@ namespace SlackBot
 
             _socket.Connect();
 
-            _findOwnId();
+            _setNameAndId();
+
 
             Task task = Task.Run((Action) _pingPongGame);
         }
 
-        private void _findOwnId()
+        private void _setNameAndId()
         {
-            foreach (SlackUser user in _getUsers())
+            JObject response = ApiCall("auth.test", null);
+            if ((bool) response["ok"] != true)
             {
-                if (user.Name == _name)
-                {
-                    BotId = user.Id;
-                    return;
-                }
+                throw new Exception("Couldn't retrieve name and id from Slack");
             }
+            Name = (string) response["user"];
+            BotId = (string) response["user_id"];
         }
 
         private bool _isFromSelf(JObject message)
         {
             if (message["subtype"] != null && (string)message["subtype"] == "bot_message")
             {
-                return (string) message["username"] == _name;
+                return (string) message["username"] == Name;
             }
             return (string) message["user"] == BotId;
         }
@@ -105,7 +104,6 @@ namespace SlackBot
 
             if (_isMessage(message) && !_isFromSelf(message))
             {
-                Console.WriteLine(message);
                 OnMessage?.Invoke(this, new SlackMessage((string)message["text"],
                     _getUserFromId((string)message["user"])),
                     _getChannelFromId((string)message["channel"]));
