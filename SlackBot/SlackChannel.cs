@@ -54,5 +54,15 @@ namespace SlackBot
             public string Creator { get; set; }
         }
 
+        public override bool Equals(object obj)
+        {
+            SlackChannel slackChannel = obj as SlackChannel;
+            return slackChannel != null && Name.Equals(slackChannel.Name);
+        }
+
+        public override int GetHashCode()
+        {
+            return Name.GetHashCode();
+        }
     }
 }

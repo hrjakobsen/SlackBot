@@ -56,7 +56,9 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AttendanceSlackBot.cs" />
+    <Compile Include="Attendance\AttendanceData.cs" />
+    <Compile Include="Attendance\AttendanceSlackBot.cs" />
+    <Compile Include="Attendance\DictionaryAsArrayResolver.cs" />
     <Compile Include="SlackChannel.cs" />
     <Compile Include="SlackMessage.cs" />
     <Compile Include="SlackBotClient.cs" />
@@ -65,6 +67,9 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Attendance" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

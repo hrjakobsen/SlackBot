@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json;
+﻿using System;
+using Newtonsoft.Json;
 
 namespace SlackBot
 {
@@ -41,6 +42,17 @@ namespace SlackBot
 
             [JsonProperty("phone")]
             public string Phone { get; set; }
+        }
+
+        public override int GetHashCode()
+        {
+            return Name.GetHashCode();
+        }
+
+        public override bool Equals(object obj)
+        {
+            SlackUser user = obj as SlackUser;
+            return user != null && user.Name == Name;
         }
     }
 }

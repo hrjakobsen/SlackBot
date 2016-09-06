@@ -4,45 +4,68 @@ using System.IO;
 using System.Linq;
 using OxyPlot;
 using System.Text;
+using OxyPlot.Axes;
 using OxyPlot.WindowsForms;
 using LineSeries = OxyPlot.Series.LineSeries;
+using Newtonsoft.Json;
 
 namespace SlackBot
 {
     public class AttendanceSlackBot : SlackBotClient
     {
+        private Dictionary<SlackChannel, AttendanceData> _data;
+
+        JsonSerializerSettings settings = new JsonSerializerSettings
+        {
+            Formatting = Formatting.Indented,
+            ContractResolver = new DictionaryAsArrayResolver()
+        };
+
         public AttendanceSlackBot(string token) : base(token)
         {
-
-
             OnChannelJoined += (sender, channel) =>
             {
                 SendMessage(channel,
                     "Hi, I'm `" + Name + "`." +
                     "I can keep attendance in a Slack channel for the members of that channel.\n" +
                     "To get a list of things I can do, simply type `<@" + BotId + "|" + Name + "> help`");
-                if (!_isTracking(channel))
-                {
-                    File.WriteAllText($"Data/{channel.Id}_data.txt", "0");
-                }
+
             };
             OnMessage += _parseMessage;
 
+            if (File.Exists("attendanceData.txt"))
+            {
+                _data = JsonConvert.DeserializeObject<Dictionary<SlackChannel, AttendanceData>>(File.ReadAllText(
+                    "attendanceData.txt"), settings);
+            }
+            else
+            {
+                _data = new Dictionary<SlackChannel, AttendanceData>();
+            }
+
         }
 
+        private void saveData()
+        {
+            File.WriteAllText("attendanceData.txt", JsonConvert.SerializeObject(_data, settings));
+        }
 
         private void _parseMessage(object sender, SlackMessage message, SlackChannel channel)
         {
             if (!message.Text.StartsWith($"<@{BotId}>")) return;
-
+            if (!_isTracking(channel))
+            {
+                _data.Add(channel, new AttendanceData());
+            }
             Dictionary<string, Delegate> commands = new Dictionary<string, Delegate>()
             {
                 {"help", new Action<SlackMessage, SlackChannel>(helpCommand)},
                 {"keep", new Action<SlackMessage, SlackChannel>(_keepAttendance)},
+                {"track", new Action<SlackMessage, SlackChannel>(_trackUsers)},
                 {"image", new Action<SlackMessage, SlackChannel>(_countAttendance)},
                 {"reset", new Action<SlackMessage, SlackChannel>(_resetChannel)},
                 {"revert", new Action<SlackMessage, SlackChannel>(_revertAttendance)},
-                {"redo", new Action<SlackMessage, SlackChannel>(_notYetImplemented)}
+                {"redo", new Action<SlackMessage, SlackChannel>(_redoAttendance)}
 
             };
 
@@ -62,40 +85,45 @@ namespace SlackBot
             }
         }
 
+        private void _redoAttendance(SlackMessage message, SlackChannel channel)
+        {
+            List<SlackUser> usersInMessage = _getUsersFromMessage(message, 3);
+            try
+            {
+                int meeting = int.Parse(message.Text.Split(' ')[2]) + 1;
+                foreach (KeyValuePair<SlackUser, List<bool>> pair in _data[channel])
+                {
+                    pair.Value[meeting] = !usersInMessage.Contains(pair.Key);
+                }
+                _countAttendance(message, channel);
+            }
+            catch (InvalidOperationException)
+            {
+                SendMessage(channel, "That is not a meeting I know of");
+            }
+            catch (IndexOutOfRangeException)
+            {
+                SendMessage(channel, "You haven't had that meeting yet");
+            }
+        }
+
+        private void _trackUsers(SlackMessage message, SlackChannel channel)
+        {
+            if (!_isTracking(channel))
+            {
+                _data.Add(channel, new AttendanceData());
+            }
+
+            List<SlackUser> usersFromMessage = _getUsersFromMessage(message, 2);
+            int numberOfMeetings = _data[channel].Any() ? _data[channel].First().Value.Count : 0;
+            _data[channel].Add(numberOfMeetings, usersFromMessage.ToArray());
+            saveData();
+        }
+
         private void _countAttendance(SlackMessage message, SlackChannel channel)
         {
-            string[] currentData = File.ReadAllText($"Data/{channel.Id}_data.txt").Split('\n');
-            int numberOfMeetings;
-            if (!int.TryParse(currentData[0], out numberOfMeetings))
-            {
-                SendMessage(channel, "This didn't work, sorry :(");
-                return;
-            }
-
-            List<string> userIds = GetUsersFromChannel(channel).Select(x => x.Id).ToList();
-
-            int[][] userData = new int[userIds.Count][];
-            for (int i = 0; i < userIds.Count; i++)
-            {
-                userData[i] = new int[numberOfMeetings];
-                for (int j = 0; j < numberOfMeetings; j++)
-                {
-                    userData[i][j] = 1;
-                }
-            }
-
-            for (int i = 1; i < currentData.Length; i++)
-            {
-                string[] usersNotThere = currentData[i].Split(',');
-                for (int j = 1; j < usersNotThere.Length; j++)
-                {
-                    userData[userIds.IndexOf(usersNotThere[j])][int.Parse(usersNotThere[0]) - 1] = 0;
-                }
-            }
-
-            var c =_createChart(userData, GetUsersFromChannel(channel).Select(x => x.Name).ToArray());
+            var c =_createChart(channel);
             string fileName = Path.GetTempPath() + Guid.NewGuid() + ".png";
-            string fileNamePng = Path.GetTempPath() + Guid.NewGuid() + ".png";
             using (var stream = File.Create(fileName))
             {
                 var svgExporter = new PngExporter {Width = 600, Height = 400};
@@ -104,26 +132,23 @@ namespace SlackBot
 
 
             SlackSendFile(channel, fileName, "attendance");
-
-
         }
 
-
-        private static PlotModel _createChart(int[][] data, string[] names)
+        private PlotModel _createChart(SlackChannel channel)
         {
-            Console.WriteLine($"The data array is {data.Length}x{data[0].Length}");
-
-            PlotModel chart = new PlotModel();
-            for (int i = 0; i < names.Length; i++)
+            PlotModel chart = new PlotModel {LegendPosition = LegendPosition.RightTop, LegendPlacement = LegendPlacement.Outside};
+            chart.Axes.Add(new LinearAxis {Position = AxisPosition.Left, Minimum = 40, Maximum = 110});
+            foreach (KeyValuePair<SlackUser, List<bool>> pair in _data[channel])
             {
-                LineSeries series = new LineSeries {Title = names[i], MarkerType = MarkerType.Circle};
+                LineSeries series = new LineSeries {MarkerType = MarkerType.Circle};
                 int numberOfTimesThere = 0;
-                for (int j = 0; j < data[i].Length; j++)
+                for (int j = 0; j < pair.Value.Count; j++)
                 {
-                    numberOfTimesThere += data[i][j];
+                    numberOfTimesThere += pair.Value[j] ? 1 : 0;
                     DataPoint nextPoint = new DataPoint(j + 1, (float) numberOfTimesThere * 100 / (j + 1));
                     series.Points.Add(nextPoint);
                 }
+                series.Title = pair.Key.Name + " (" + Math.Round(series.Points.Last().Y, 2) + "%)";
                 chart.Series.Add(series);
             }
 
@@ -134,53 +159,28 @@ namespace SlackBot
 
         private void _resetChannel(SlackMessage message, SlackChannel channel)
         {
-            File.WriteAllText($"Data/{channel.Id}_data.txt", "0");
+            _data[channel] = new AttendanceData();
+            saveData();
         }
 
         private void _keepAttendance(SlackMessage message, SlackChannel channel)
         {
-            List<string> userIDs = null;
+            List<SlackUser> usersNotThere = null;
             try
             {
-                userIDs = _getUserIdsFromMessage(message, 2);
+                usersNotThere = _getUsersFromMessage(message, 2);
             }
             catch (ArgumentException e)
             {
                 SendMessage(channel, e.Message);
                 return;
             }
-            if (!_isTracking(channel))
-            {
-                File.WriteAllText($"Data/{channel.Id}_data.txt", "0");
-            }
-
-            string[] currentData = File.ReadAllText($"Data/{channel.Id}_data.txt").Split('\n');
-            int numberOfMeetings = 0;
-            if (!int.TryParse(currentData[0], out numberOfMeetings))
-            {
-                SendMessage(_getChannelFromId(message.Channel), "Attendance data was corrupted. " +
-                                                                "I've reset it for you. Sorry about this incident.");
-                _resetChannel(message, channel);
-            }
-
-            string newFileContent = (++numberOfMeetings).ToString();
-            for (int i = 1; i < currentData.Length; i++)
-            {
-                newFileContent += "\n" + currentData[i];
-            }
-
-            if (userIDs.Count != 0)
-            {
-                string ids = userIDs.Aggregate("\n" + numberOfMeetings + ",", (current, userID) => current + (userID + ","));
-                newFileContent += ids.Substring(0, ids.Length - 1);
-            }
-
-            File.WriteAllText($"Data/{channel.Id}_data.txt", newFileContent);
-
+            _data[channel].Update(usersNotThere);
             _countAttendance(message, channel);
+            saveData();
         }
 
-        private List<string> _getUserIdsFromMessage(SlackMessage message, int startIndex)
+        private List<SlackUser> _getUsersFromMessage(SlackMessage message, int startIndex)
         {
             List<string> userIDs = new List<string>();
             string[] usersPart = message.Text.Split(' ');
@@ -200,51 +200,17 @@ namespace SlackBot
                 userIDs.Add(userId);
             }
 
-            return userIDs;
+            return userIDs.Select(_getUserFromId).ToList();
         }
 
         private void _revertAttendance(SlackMessage message, SlackChannel channel)
         {
-            String[] data = File.ReadAllLines($"Data/{channel.Id}_data.txt");
-
-            int numberOfMeetings = int.Parse(data[0]);
-
-            if (numberOfMeetings == 0) return;
-
-            data[0] = (numberOfMeetings - 1).ToString();
-
-            int itemsToWriteToFile = data.Length;
-
-            if (data.Last().StartsWith(numberOfMeetings + ","))
-            {
-                itemsToWriteToFile--;
-            }
-
-            StringBuilder fileData = new StringBuilder();
-
-            for (int i = 0; i < itemsToWriteToFile; i++)
-            {
-                fileData.Append(data[i] + "\n");
-            }
-
-            //Remove last character (a newline)
-            fileData.Remove(fileData.Length - 1, 1);
-
-            File.WriteAllText($"Data/{channel.Id}_data.txt", fileData.ToString());
-        }
-
-        private void _notYetImplemented(SlackMessage message, SlackChannel channel)
-        {
-            SendMessage(channel, "This has not been implemented yet");
+            _data[channel].RemoveMeeting(_data[channel].Count - 1);
         }
 
         private bool _isTracking(SlackChannel channel)
         {
-            if (!Directory.Exists("Data"))
-            {
-                Directory.CreateDirectory("Data");
-            }
-            return File.Exists($"Data/{channel.Id}_data.txt");
+            return _data.ContainsKey(channel);
         }
 
         private void helpCommand(SlackMessage message, SlackChannel channel)
@@ -254,7 +220,7 @@ namespace SlackBot
                        "\n        •`<@{0}|{1}> keep [users *not* attending]` to register attendance at a meeting" +
                        "\n        •`<@{0}|{1}> reset` to reset all information about attendance in this channel. Be careful. This *can not* be undone" +
                        "\n        •`<@{0}|{1}> revert` to remove the last registered meeting" +
-                       "\n        •`<@{0}|{1}> redo [meeting] [users *not* attending]`" +
+                       "\n        •`<@{0}|{1}> redo [meeting number]` to re-register a meeting (starts at 1!)" +
                        "\n        •`<@{0}|{1}> image` to get a chart showing the latest attendance information", BotId, Name);
             SendMessage(channel, text);
         }
