@@ -3,11 +3,8 @@ using Newtonsoft.Json;
 
 namespace SlackBot
 {
-    public class SlackChannel
+    public class SlackPublicChannel : SlackChannel
     {
-        [JsonProperty("id")]
-        public string Id { get; set; }
-
         [JsonProperty("name")]
         public string Name { get; set; }
 
@@ -52,17 +49,6 @@ namespace SlackBot
 
             [JsonProperty("creator")]
             public string Creator { get; set; }
-        }
-
-        public override bool Equals(object obj)
-        {
-            SlackChannel slackChannel = obj as SlackChannel;
-            return slackChannel != null && Name.Equals(slackChannel.Name);
-        }
-
-        public override int GetHashCode()
-        {
-            return Name.GetHashCode();
         }
     }
 }
