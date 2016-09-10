@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Threading;
@@ -20,7 +19,8 @@ namespace SlackBot
         public string BotId { get; private set; }
 
         public List<SlackUser> Users => _getUsers();
-        public List<SlackChannel> Channels => _getChannels();
+        public List<SlackPublicChannel> PublicChannels => _getPublicChannels();
+        public List<SlackPrivateChannel> PrivateChannels => _getPrivateChannels();
 
         public delegate void MessageHandler(object sender, SlackMessage message, SlackChannel channel);
         public event MessageHandler OnMessage;
@@ -57,7 +57,8 @@ namespace SlackBot
             }
 
             string response = wc.DownloadString($"https://slack.com/api/" + api + urlParams);
-
+            Console.WriteLine($"https://slack.com/api/"+api+urlParams);
+            Console.WriteLine(JObject.Parse(response));
             return JObject.Parse(response);
         }
 
@@ -101,7 +102,7 @@ namespace SlackBot
         {
             string jsonString = e.Data;
             JObject message = JObject.Parse(jsonString);
-
+            Console.WriteLine(message);
             if (_isMessage(message) && !_isFromSelf(message))
             {
                 OnMessage?.Invoke(this, new SlackMessage((string)message["text"],
@@ -130,7 +131,7 @@ namespace SlackBot
             return users;
         }
 
-        protected List<SlackChannel> _getChannels()
+        protected List<SlackPublicChannel> _getPublicChannels()
         {
             JObject response = ApiCall("channels.list", new JObject());
 
@@ -140,9 +141,66 @@ namespace SlackBot
             }
 
             JArray arr = (JArray) response["channels"];
-            List<SlackChannel> channels = arr.ToObject<List<SlackChannel>>();
+            List<SlackPublicChannel> channels = arr.ToObject<List<SlackPublicChannel>>();
 
             return channels;
+        }
+
+        protected List<SlackPrivateChannel> _getPrivateChannels()
+        {
+            JObject response = ApiCall("im.list", new JObject());
+
+            if (!((bool) response["ok"]))
+            {
+                throw new Exception(response["error"].ToString());
+            }
+
+            JArray arr = (JArray) response["ims"];
+            List<SlackPrivateChannel> channels = arr.ToObject<List<SlackPrivateChannel>>();
+
+            return channels;
+        }
+
+        protected SlackChannel _getChannelFromId(string id)
+        {
+            SlackChannel channel = null;
+            if (id.StartsWith("C")) // public channel
+            {
+
+                JObject parameters = new JObject {{"channel", id}};
+                JObject response = ApiCall("channels.info", parameters);
+
+                if (!((bool) response["ok"]))
+                {
+                    throw new Exception(response["error"].ToString());
+                }
+
+                JObject Jchannel = (JObject) response["channel"];
+                channel = Jchannel.ToObject<SlackPublicChannel>();
+            }
+            else if (id.StartsWith("D")) // directmessage
+            {
+                channel = PrivateChannels.FirstOrDefault(privateChannel => privateChannel.Id == id);
+            }
+
+
+            return channel;
+        }
+
+        protected SlackUser _getUserFromId(string id)
+        {
+            JObject parameters = new JObject {{"user", id}};
+            JObject response = ApiCall("users.info", parameters);
+
+            if (!((bool) response["ok"]))
+            {
+                throw new Exception(response["error"].ToString());
+            }
+
+            JObject Juser = (JObject) response["user"];
+            SlackUser user = Juser.ToObject<SlackUser>();
+
+            return user;
         }
 
         private static bool _isMessage(JObject response)
@@ -166,16 +224,6 @@ namespace SlackBot
             }
         }
 
-        protected SlackChannel _getChannelFromId(string id)
-        {
-            return Channels.FirstOrDefault(channel => channel.Id == id);
-        }
-
-        protected SlackUser _getUserFromId(string id)
-        {
-            return Users.FirstOrDefault(user => user.Id == id);
-        }
-
         /// <summary>Sends a message to a given slack channel</summary>
         /// <param name="channel">Slack channel to send the message to</param>
         /// <param name="message">Message to send to the channel, this supports slack message formatting</param>
@@ -185,7 +233,7 @@ namespace SlackBot
             {
                 {"channel", channel.Id},
                 {"text", message},
-                {"username", "attendancebot"}
+                {"username", Name}
             };
             ApiCall("chat.postMessage", parameters);
         }
@@ -200,7 +248,7 @@ namespace SlackBot
             wc.UploadFile("https://slack.com/api/files.upload?token=" + _token + "&filename=" + filename + "&channels=" + channel.Id, path);
         }
 
-        public List<SlackUser> GetUsersFromChannel(SlackChannel channel)
+        public List<SlackUser> GetUsersFromChannel(SlackPublicChannel channel)
         {
             return channel.Members.Select(_getUserFromId).ToList();
         }
