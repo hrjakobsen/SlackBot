@@ -25,13 +25,25 @@ namespace SlackBot
         public delegate void MessageHandler(object sender, SlackMessage message, SlackChannel channel);
         public event MessageHandler OnMessage;
 
-        public delegate void ChannelJoinedHandler(object sender, SlackChannel channel);
-        public event ChannelJoinedHandler OnChannelJoined;
+        public delegate void ChannelEventHandler(object sender, SlackChannel channel);
+        public event ChannelEventHandler OnChannelJoined,
+                                         OnChannelCreated,
+                                         OnChannelLeft,
+                                         OnChannelRename;
+
+        public delegate void ChannelArchivedHandler(object sender, SlackChannel channel, SlackUser user);
+        public event ChannelArchivedHandler OnChannelArchived,
+                                            OnChannelUnarchived;
+
+
+        public delegate void ChannelDeletedHandler(object sender, string channelID);
+        public event ChannelDeletedHandler OnChannelDeleted;
+
+
 
         /// <summary>Initializes a new Slack client using a token generated on Slack and gives it a name</summary>
         /// <param name="token">Generated token from slack which allows the client to connect to a team</param>
-        /// <param name="name">name given on slack so that the bot can identify itself</param>
-        public SlackBotClient(string token)
+        protected SlackBotClient(string token)
         {
             _token = token;
             _start();
@@ -57,8 +69,6 @@ namespace SlackBot
             }
 
             string response = wc.DownloadString($"https://slack.com/api/" + api + urlParams);
-            Console.WriteLine($"https://slack.com/api/"+api+urlParams);
-            Console.WriteLine(JObject.Parse(response));
             return JObject.Parse(response);
         }
 
@@ -102,19 +112,51 @@ namespace SlackBot
         {
             string jsonString = e.Data;
             JObject message = JObject.Parse(jsonString);
-            Console.WriteLine(message);
-            if (_isMessage(message) && !_isFromSelf(message))
+            if (_isType(message, "message") && !_isFromSelf(message))
             {
                 OnMessage?.Invoke(this, new SlackMessage((string)message["text"],
                     _getUserFromId((string)message["user"])),
                     _getChannelFromId((string)message["channel"]));
             }
-            else if (_isChannelJoined(message))
+            else if (_isType(message, "channel_joined"))
             {
                 SlackChannel channel = _getChannelFromId((string) message["channel"]["id"]);
                 OnChannelJoined?.Invoke(this, channel);
             }
+            else if (_isType(message, "channel_created"))
+            {
+                SlackChannel channel = _getChannelFromId((string) message["channel"]["id"]);
+                OnChannelCreated?.Invoke(this, channel);
+            }
+            else if (_isType(message, "channel_deleted"))
+            {
+                OnChannelDeleted?.Invoke(this, (string)message["channel"]);
+            }
+            else if (_isType(message, "channel_archive"))
+            {
+                SlackChannel channel = _getChannelFromId((string) message["channel"]);
+                SlackUser user = _getUserFromId((string) message["user"]);
+                OnChannelArchived?.Invoke(this, channel, user);
+            }
+            else if (_isType(message, "channel_left"))
+            {
+                SlackChannel channel = _getChannelFromId((string) message["channel"]);
+                OnChannelLeft?.Invoke(this, channel);
+            }
+            else if (_isType(message, "channel_rename"))
+            {
+                SlackChannel channel = _getChannelFromId((string) message["channel"]["id"]);
+                OnChannelRename?.Invoke(this, channel);
+            }
+            else if (_isType(message, "channel_unarchive"))
+            {
+                SlackChannel channel = _getChannelFromId((string) message["channel"]);
+                SlackUser user = _getUserFromId((string) message["user"]);
+                OnChannelUnarchived?.Invoke(this, channel, user);
+            }
         }
+
+
 
         protected List<SlackUser> _getUsers()
         {
@@ -203,16 +245,9 @@ namespace SlackBot
             return user;
         }
 
-        private static bool _isMessage(JObject response)
+        private static bool _isType(JObject response, string type)
         {
-            return ((string) response["type"] == "message");
-        }
-
-
-
-        private static bool _isChannelJoined(JObject response)
-        {
-            return ((string) response["type"] == "channel_joined");
+            return (string) response["type"] == type;
         }
 
         private void _pingPongGame()
